@@ -1,0 +1,300 @@
+blueprint:
+  name: Calendar-based Master Climate Control (Event -> Toggle Overrides -> Office/School -> Eco)
+  description: >
+    Stable first-generation blueprint. Priority: Blockers -> Event ->
+    Eco Override -> Office/School -> Eco. Includes fan mode control
+    for every state.
+  domain: automation
+  input:
+    run_every_minutes:
+      name: Run every (minutes)
+      default: "/15"
+      selector:
+        select:
+          options:
+            - "/5"
+            - "/10"
+            - "/15"
+            - "/30"
+            - "/60"
+
+    climates:
+      name: Thermostats to control
+      selector:
+        entity:
+          domain: climate
+          multiple: true
+
+    calendars:
+      name: Calendars to check
+      selector:
+        entity:
+          domain: calendar
+          multiple: true
+
+    precool_minutes:
+      name: Pre-cool lead time (minutes)
+      default: 90
+      selector:
+        number:
+          min: 0
+          max: 360
+          unit_of_measurement: min
+
+    blocker_booleans:
+      name: Blockers (Prayer/Cleaning/etc)
+      description: If ANY are ON, automation stops.
+      default: []
+      selector:
+        entity:
+          domain: input_boolean
+          multiple: true
+
+    eco_override_booleans:
+      name: Eco override boolean(s)
+      description: If ANY are ON and no Event is active, force Eco Mode.
+      default: []
+      selector:
+        entity:
+          domain: input_boolean
+          multiple: true
+
+    master_disable_booleans:
+      name: Master disable boolean(s)
+      default: []
+      selector:
+        entity:
+          domain: input_boolean
+          multiple: true
+
+    school_weekdays:
+      name: Office/School weekdays
+      default: [mon, tue, wed, thu, fri]
+      selector:
+        select:
+          multiple: true
+          options: [mon, tue, wed, thu, fri, sat, sun]
+
+    school_start_time:
+      name: Office/School start time
+      default: "09:00:00"
+      selector:
+        time: {}
+
+    school_end_time:
+      name: Office/School end time
+      default: "15:00:00"
+      selector:
+        time: {}
+
+    school_target_high:
+      name: Office/School target high
+      default: 74
+      selector:
+        number:
+          min: 60
+          max: 85
+          unit_of_measurement: "F"
+
+    school_target_low:
+      name: Office/School target low
+      default: 67
+      selector:
+        number:
+          min: 50
+          max: 80
+          unit_of_measurement: "F"
+
+    school_fan_mode:
+      name: Office/School fan mode
+      default: "on"
+      selector:
+        select:
+          options: ["on", "auto", "circulate"]
+
+    event_target_high:
+      name: Event Mode target high
+      default: 70
+      selector:
+        number:
+          min: 60
+          max: 85
+          unit_of_measurement: "F"
+
+    event_target_low:
+      name: Event Mode target low
+      default: 67
+      selector:
+        number:
+          min: 50
+          max: 80
+          unit_of_measurement: "F"
+
+    event_fan_mode:
+      name: Event Mode fan mode
+      default: "on"
+      selector:
+        select:
+          options: ["on", "auto", "circulate"]
+
+    eco_target_high:
+      name: Eco target high
+      default: 82
+      selector:
+        number:
+          min: 70
+          max: 90
+          unit_of_measurement: "F"
+
+    eco_target_low:
+      name: Eco target low
+      default: 60
+      selector:
+        number:
+          min: 45
+          max: 75
+          unit_of_measurement: "F"
+
+    eco_fan_mode:
+      name: Eco fan mode
+      default: "auto"
+      selector:
+        select:
+          options: ["on", "auto", "circulate"]
+
+mode: restart
+
+trigger:
+  - platform: time_pattern
+    minutes: !input run_every_minutes
+
+action:
+  - variables:
+      calendars_list: !input calendars
+      climates_list: !input climates
+      precool_input: !input precool_minutes
+      precool_sec: "{{ (precool_input | int) * 60 }}"
+      blockers: !input blocker_booleans
+      master_disables: !input master_disable_booleans
+      eco_overrides: !input eco_override_booleans
+
+      any_blocker_active: >-
+        {% set b = expand(blockers) + expand(master_disables) %}
+        {{ b | selectattr('state', 'eq', 'on') | list | length > 0 }}
+
+      eco_override_active: >-
+        {% set e = expand(eco_overrides) %}
+        {{ e | selectattr('state', 'eq', 'on') | list | length > 0 }}
+
+      is_event_active: >-
+        {% set ns = namespace(found=false) %}
+        {% for cal in calendars_list %}
+          {% set start = state_attr(cal, 'start_time') %}
+          {% set end = state_attr(cal, 'end_time') %}
+          {% if start and end %}
+            {% set start_dt = as_datetime(start) | as_local %}
+            {% set end_dt = as_datetime(end) | as_local %}
+            {% set now_dt = now() | as_local %}
+            {% if (start_dt <= now_dt <= end_dt) or (0 < (start_dt - now_dt).total_seconds() < precool_sec) %}
+              {% set ns.found = true %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.found }}
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ any_blocker_active }}"
+        sequence: []
+
+      - conditions:
+          - condition: template
+            value_template: "{{ is_event_active }}"
+        sequence:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              hvac_mode: heat_cool
+
+          - action: climate.set_temperature
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              target_temp_high: !input event_target_high
+              target_temp_low: !input event_target_low
+
+          - action: climate.set_fan_mode
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              fan_mode: !input event_fan_mode
+
+      - conditions:
+          - condition: template
+            value_template: "{{ eco_override_active }}"
+        sequence:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              hvac_mode: heat_cool
+
+          - action: climate.set_temperature
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              target_temp_high: !input eco_target_high
+              target_temp_low: !input eco_target_low
+
+          - action: climate.set_fan_mode
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              fan_mode: !input eco_fan_mode
+
+      - conditions:
+          - condition: time
+            weekday: !input school_weekdays
+            after: !input school_start_time
+            before: !input school_end_time
+        sequence:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              hvac_mode: heat_cool
+
+          - action: climate.set_temperature
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              target_temp_high: !input school_target_high
+              target_temp_low: !input school_target_low
+
+          - action: climate.set_fan_mode
+            target:
+              entity_id: "{{ climates_list }}"
+            data:
+              fan_mode: !input school_fan_mode
+
+    default:
+      - action: climate.set_hvac_mode
+        target:
+          entity_id: "{{ climates_list }}"
+        data:
+          hvac_mode: heat_cool
+
+      - action: climate.set_temperature
+        target:
+          entity_id: "{{ climates_list }}"
+        data:
+          target_temp_high: !input eco_target_high
+          target_temp_low: !input eco_target_low
+
+      - action: climate.set_fan_mode
+        target:
+          entity_id: "{{ climates_list }}"
+        data:
+          fan_mode: !input eco_fan_mode

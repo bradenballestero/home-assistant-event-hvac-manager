@@ -25,11 +25,17 @@ The automation is designed so a non-coder can open Home Assistant and answer:
 
 ## Current Status
 
-This is an early extraction from a working Home Assistant setup. The included blueprint is the reusable starting point. The `examples/` folder shows how the original Sanctuary-style setup maps into the project.
+This project includes two blueprints:
+
+- `calendar_master_climate_control_legacy.yaml` is the stable first-generation blueprint. This is the time-tested version that has run the real facility.
+- `event_hvac_manager.yaml` is the newer readable-helper version. It adds clearer status helpers, stronger override handling, and fewer unnecessary thermostat commands, but it is still being field-tested.
+
+If you want the proven version first, start with the legacy blueprint. If you want the newer direction of the project, try the Event HVAC Manager blueprint.
 
 ## Files
 
-- `blueprints/automation/event_hvac_manager.yaml` - reusable Home Assistant automation blueprint
+- `blueprints/automation/calendar_master_climate_control_legacy.yaml` - stable first-generation blueprint
+- `blueprints/automation/event_hvac_manager.yaml` - newer readable-helper blueprint
 - `examples/sanctuary-example.yaml` - example automation using the pattern
 - `docs/helpers.md` - helper entities that make the automation readable
 - `docs/troubleshooting.md` - common problems and what to check first
@@ -48,7 +54,13 @@ This project treats HVAC automation like a small control panel, not a hidden scr
 
 ## Installation
 
-Copy `blueprints/automation/event_hvac_manager.yaml` into:
+For the stable first-generation blueprint, copy `blueprints/automation/calendar_master_climate_control_legacy.yaml` into:
+
+```text
+config/blueprints/automation/readable_hvac/calendar_master_climate_control_legacy.yaml
+```
+
+For the newer readable-helper blueprint, copy `blueprints/automation/event_hvac_manager.yaml` into:
 
 ```text
 config/blueprints/automation/readable_hvac/event_hvac_manager.yaml
