@@ -1,0 +1,120 @@
+# Example Home Assistant dashboard view for one HVAC zone.
+#
+# Paste this as a view/card starting point and rename the entity IDs to match
+# your own zone. This example uses the "office" helper names from the project
+# docs, but the same shape works for Sanctuary, Chapel, Kidzone, classrooms,
+# or other shared spaces.
+#
+# The start/stop cool buttons point at example scripts. Rename those script
+# entity IDs to match your setup, or remove the buttons if you do not use
+# script-based manual cooling controls.
+
+title: Office HVAC
+path: office-hvac
+icon: mdi:office-building
+type: sections
+max_columns: 3
+sections:
+  - title: HVAC Control
+    cards:
+      - type: markdown
+        title: Status
+        content: |
+          ## {{ states('input_text.office_hvac_effective_mode') }}
+
+          {{ states('input_text.office_hvac_effective_reason') }}
+
+          **Cool Timer:** {{ states('timer.office_hvac_manual_cool') }}
+
+          **Hold Timer:** {{ states('timer.office_hvac_hold_current') }}
+
+      - type: tile
+        entity: input_select.office_hvac_manual_cool_duration
+        name: Duration
+        icon: mdi:timer-sand
+        tap_action:
+          action: more-info
+
+      - type: button
+        name: Cool
+        icon: mdi:snowflake
+        tap_action:
+          action: call-service
+          service: script.turn_on
+          target:
+            entity_id: script.office_hvac_start_manual_cool
+
+      - type: grid
+        columns: 3
+        square: false
+        cards:
+          - type: tile
+            entity: input_number.office_hvac_event_cool_setpoint
+            name: Event
+            icon: mdi:calendar-star
+            features:
+              - type: numeric-input
+          - type: tile
+            entity: input_number.office_hvac_office_school_cool_setpoint
+            name: Office/School
+            icon: mdi:office-building-cog
+            features:
+              - type: numeric-input
+          - type: tile
+            entity: input_number.office_hvac_eco_cool_setpoint
+            name: Eco
+            icon: mdi:leaf
+            features:
+              - type: numeric-input
+
+      - type: grid
+        columns: 4
+        square: false
+        cards:
+          - type: tile
+            entity: input_select.office_hvac_comfort_fan_mode
+            name: Fan
+            icon: mdi:fan
+          - type: button
+            name: Stop Cool
+            icon: mdi:snowflake-off
+            tap_action:
+              action: call-service
+              service: script.turn_on
+              target:
+                entity_id: script.office_hvac_stop_manual_cool
+          - type: button
+            name: Hold
+            icon: mdi:pause-circle
+            tap_action:
+              action: call-service
+              service: input_boolean.turn_on
+              target:
+                entity_id: input_boolean.office_hvac_hold_current
+          - type: button
+            name: Resume
+            icon: mdi:play-circle
+            tap_action:
+              action: call-service
+              service: input_boolean.turn_off
+              target:
+                entity_id:
+                  - input_boolean.office_hvac_hold_current
+                  - input_boolean.office_hvac_manual_cool_active
+
+  - title: Office Status
+    cards:
+      - type: tile
+        entity: climate.office
+        name: Office
+        icon: mdi:thermostat
+        features:
+          - type: climate-hvac-modes
+            style: dropdown
+          - type: climate-fan-modes
+            style: dropdown
+
+      - type: tile
+        entity: sensor.office_temperature
+        name: Temp
+        icon: mdi:thermometer

@@ -16,6 +16,7 @@ Optional but useful:
 
 - `timer.<zone>_hvac_manual_cool`
 - `timer.<zone>_hvac_hold_current`
+- `input_select.<zone>_hvac_manual_cool_duration`
 - `input_datetime.<zone>_hvac_manual_cool_until`
 - `input_datetime.<zone>_hvac_hold_current_until`
 - `input_number.<zone>_hvac_event_cool_setpoint`

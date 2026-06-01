@@ -32,12 +32,22 @@ This project includes two blueprints:
 
 If you want the proven version first, start with the legacy blueprint. If you want the newer direction of the project, try the Event HVAC Manager blueprint.
 
+## Dashboard Example
+
+The automation works well with a simple dashboard that shows the current mode, the reason for that mode, thermostat status, setpoints, and temporary override controls.
+
+![Example HVAC dashboard](docs/images/hvac-dashboard-office.png)
+
+See [`docs/dashboard.md`](docs/dashboard.md) for more screenshots and a copyable dashboard example.
+
 ## Files
 
 - `blueprints/automation/calendar_master_climate_control_legacy.yaml` - stable first-generation blueprint
 - `blueprints/automation/event_hvac_manager.yaml` - newer readable-helper blueprint
 - `examples/sanctuary-example.yaml` - example automation using the pattern
+- `examples/dashboard/office-hvac-dashboard.yaml` - optional dashboard view example
 - `docs/helpers.md` - helper entities that make the automation readable
+- `docs/dashboard.md` - screenshots and dashboard layout notes
 - `docs/troubleshooting.md` - common problems and what to check first
 
 ## Design Philosophy
