@@ -1,0 +1,42 @@
+alias: Sanctuary HVAC Manager
+description: >
+  Example setup based on a real church Sanctuary zone. The helpers make the
+  current HVAC decision readable to humans and assistants.
+use_blueprint:
+  path: readable_hvac/event_hvac_manager.yaml
+  input:
+    climates:
+      - climate.sanctuary1
+      - climate.sanctuary2
+    calendar: calendar.ndwc_sanctuary
+    run_every_minutes: "/15"
+    precool_minutes: 90
+    occupancy_sensor: binary_sensor.sanctuary_occupied
+    blocker_booleans:
+      - input_boolean.cleaning_team_override
+      - input_boolean.a_c_prayer_override
+    eco_override_booleans:
+      - input_boolean.ndwc_thermostat_eco_override
+    admin_comfort_boolean: input_boolean.sanctuary_hvac_admin_comfort_lock
+    hold_current_boolean: input_boolean.sanctuary_hvac_hold_current
+    manual_cool_boolean: input_boolean.sanctuary_hvac_manual_cool_active
+    effective_mode_text: input_text.sanctuary_hvac_effective_mode
+    effective_reason_text: input_text.sanctuary_hvac_effective_reason
+    comfort_fan_mode: "on"
+    office_school_weekdays:
+      - mon
+      - tue
+      - wed
+      - thu
+      - fri
+    office_school_start_time: "09:00:00"
+    office_school_end_time: "15:15:00"
+    admin_cool_high: 70
+    event_cool_high: 70
+    occupied_cool_high: 72
+    office_school_cool_high: 72
+    eco_cool_high: 82
+    comfort_heat_low: 66
+    office_school_heat_low: 68
+    eco_heat_low: 60
+mode: restart
