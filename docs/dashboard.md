@@ -33,7 +33,7 @@ See [`examples/dashboard/office-hvac-dashboard.yaml`](../examples/dashboard/offi
 
 That file is intentionally simple and uses mostly standard Home Assistant cards. You will need to rename entity IDs to match your own helpers, scripts, and thermostats.
 
-The manual cool buttons reference example scripts such as `script.office_hvac_start_manual_cool`. If your setup does not use those scripts, remove those buttons or point them at your own override scripts.
+The duration picker and setpoint controls require additional helpers and automations; they are not implemented by the blueprint. The manual cool buttons reference example scripts such as `script.office_hvac_start_manual_cool`. If your setup does not use those scripts, remove those buttons or point them at your own override scripts.
 
 ## Keep It Safe
 

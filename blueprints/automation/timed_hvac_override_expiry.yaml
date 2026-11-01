@@ -1,0 +1,42 @@
+blueprint:
+  name: Expire timed HVAC override
+  description: Clears a timed HVAC override when its timer and recorded expiration have both passed. Run one instance per override.
+  domain: automation
+  input:
+    override_boolean:
+      name: Override boolean
+      selector:
+        entity:
+          domain: input_boolean
+    override_timer:
+      name: Override timer
+      selector:
+        entity:
+          domain: timer
+    override_until:
+      name: Expiration date and time helper
+      description: Must have both date and time enabled.
+      selector:
+        entity:
+          domain: input_datetime
+mode: restart
+trigger:
+  - platform: homeassistant
+    event: start
+  - platform: time_pattern
+    minutes: /1
+  - platform: state
+    entity_id: !input override_timer
+variables:
+  override_entity: !input override_boolean
+  timer_entity: !input override_timer
+  until_entity: !input override_until
+condition:
+  - condition: template
+    value_template: >-
+      {{ is_state(override_entity, 'on') and not is_state(timer_entity, 'active')
+         and as_timestamp(states(until_entity), 0) <= as_timestamp(now()) }}
+action:
+  - action: input_boolean.turn_off
+    target:
+      entity_id: !input override_boolean

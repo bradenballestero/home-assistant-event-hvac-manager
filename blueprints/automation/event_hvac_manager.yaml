@@ -2,7 +2,7 @@ blueprint:
   name: Event HVAC Manager
   description: >
     Human-readable HVAC manager for shared spaces. Priority order:
-    blockers, admin comfort, hold current, calendar event/pre-cool,
+    admin comfort, hold current, blockers, calendar event/pre-cool,
     eco override, manual cool, occupancy, office/school schedule, eco fallback.
     Calendar unavailable blips are held instead of treated as no event.
   domain: automation
@@ -13,6 +13,26 @@ blueprint:
       selector:
         entity:
           domain: climate
+          multiple: true
+
+    thermostat_type:
+      name: Thermostat type
+      description: All thermostats in the zone must use the same type.
+      default: heat_cool
+      selector:
+        select:
+          options:
+            - label: Dual setpoint (heat and cool)
+              value: heat_cool
+            - label: Cool only (single setpoint)
+              value: cool
+
+    watched_entities:
+      name: Controls to watch
+      description: Select the zone controls, setpoint helpers and occupancy sensor for prompt reevaluation. Calendar changes are intentionally excluded; calendar checks use the cadence.
+      default: []
+      selector:
+        entity:
           multiple: true
 
     calendar:
@@ -110,6 +130,30 @@ blueprint:
           domain: input_text
           multiple: false
 
+    fan_mode_helper:
+      name: Comfort fan mode helper (optional)
+      description: Input select with on and auto options. Add it to Controls to watch.
+      default: []
+      selector:
+        entity:
+          domain: input_select
+
+    schedule_start_helper:
+      name: Office / school start time helper (optional)
+      description: Time-only input datetime. Add it to Controls to watch.
+      default: []
+      selector:
+        entity:
+          domain: input_datetime
+
+    schedule_end_helper:
+      name: Office / school end time helper (optional)
+      description: Time-only input datetime. Add it to Controls to watch.
+      default: []
+      selector:
+        entity:
+          domain: input_datetime
+
     comfort_fan_mode:
       name: Comfort fan mode
       default: "on"
@@ -138,6 +182,38 @@ blueprint:
       default: "15:15:00"
       selector:
         time: {}
+
+    admin_setpoint_helper:
+      name: Admin cool setpoint helper (optional)
+      description: Overrides the corresponding fixed cool setpoint when available. Add it to Controls to watch for prompt updates.
+      default: []
+      selector:
+        entity:
+          domain: input_number
+
+    event_setpoint_helper:
+      name: Event / manual cool cool setpoint helper (optional)
+      description: Overrides the corresponding fixed cool setpoint when available. Add it to Controls to watch for prompt updates.
+      default: []
+      selector:
+        entity:
+          domain: input_number
+
+    office_school_setpoint_helper:
+      name: Office / school cool setpoint helper (optional)
+      description: Overrides the corresponding fixed cool setpoint when available. Add it to Controls to watch for prompt updates.
+      default: []
+      selector:
+        entity:
+          domain: input_number
+
+    eco_setpoint_helper:
+      name: Eco cool setpoint helper (optional)
+      description: Overrides the corresponding fixed cool setpoint when available. Add it to Controls to watch for prompt updates.
+      default: []
+      selector:
+        entity:
+          domain: input_number
 
     admin_cool_high:
       name: Admin comfort cool high
@@ -213,6 +289,9 @@ blueprint:
 
 mode: restart
 
+trigger_variables:
+  watched: !input watched_entities
+
 trigger:
   - platform: homeassistant
     event: start
@@ -220,8 +299,13 @@ trigger:
   - platform: time_pattern
     minutes: !input run_every_minutes
     id: cadence
+  - platform: state
+    entity_id: !input watched_entities
+    id: controls
+    enabled: "{{ watched | count > 0 }}"
 
 variables:
+  thermostat_type: !input thermostat_type
   climates_list: !input climates
   calendar_entity: !input calendar
   precool_minutes_input: !input precool_minutes
@@ -233,7 +317,24 @@ variables:
   occupancy_entity: !input occupancy_sensor
   mode_text_entity: !input effective_mode_text
   reason_text_entity: !input effective_reason_text
-  comfort_fan: !input comfort_fan_mode
+  admin_helper: !input admin_setpoint_helper
+  event_helper: !input event_setpoint_helper
+  office_helper: !input office_school_setpoint_helper
+  eco_helper: !input eco_setpoint_helper
+  admin_default: !input admin_cool_high
+  event_default: !input event_cool_high
+  office_default: !input office_school_cool_high
+  eco_default: !input eco_cool_high
+  fan_helper: !input fan_mode_helper
+  fan_default: !input comfort_fan_mode
+  comfort_fan: "{{ states(fan_helper) if fan_helper != [] and states(fan_helper) in ['on', 'auto'] else fan_default }}"
+  schedule_start_helper_entity: !input schedule_start_helper
+  schedule_end_helper_entity: !input schedule_end_helper
+  schedule_start_default: !input office_school_start_time
+  schedule_end_default: !input office_school_end_time
+  schedule_weekdays: !input office_school_weekdays
+  schedule_start: "{{ states(schedule_start_helper_entity) if schedule_start_helper_entity != [] and states(schedule_start_helper_entity) not in ['unknown', 'unavailable'] else schedule_start_default }}"
+  schedule_end: "{{ states(schedule_end_helper_entity) if schedule_end_helper_entity != [] and states(schedule_end_helper_entity) not in ['unknown', 'unavailable'] else schedule_end_default }}"
   now_ts: "{{ as_timestamp(now()) }}"
   calendar_start_ts: "{{ as_timestamp(state_attr(calendar_entity, 'start_time'), 0) }}"
   calendar_end_ts: "{{ as_timestamp(state_attr(calendar_entity, 'end_time'), 0) }}"
@@ -258,18 +359,6 @@ action:
   - choose:
       - conditions:
           - condition: template
-            value_template: "{{ blockers_active }}"
-        sequence:
-          - variables:
-              selected_mode: "Blocked"
-              reason: "A blocker is active, so thermostat settings are being held."
-              desired_hvac_mode: "hold"
-              desired_low: 0
-              desired_high: 0
-              desired_fan: "none"
-
-      - conditions:
-          - condition: template
             value_template: "{{ admin_active }}"
         sequence:
           - variables:
@@ -277,7 +366,7 @@ action:
               reason: "Admin comfort lock is active."
               desired_hvac_mode: "heat_cool"
               desired_low: !input comfort_heat_low
-              desired_high: !input admin_cool_high
+              desired_high: "{{ states(admin_helper) | float(admin_default | float) if admin_helper != [] else admin_default }}"
               desired_fan: "{{ comfort_fan }}"
 
       - conditions:
@@ -287,6 +376,18 @@ action:
           - variables:
               selected_mode: "Hold Current"
               reason: "Hold Current is active, so thermostat settings are not being changed."
+              desired_hvac_mode: "hold"
+              desired_low: 0
+              desired_high: 0
+              desired_fan: "none"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ blockers_active }}"
+        sequence:
+          - variables:
+              selected_mode: "Blocked"
+              reason: "A blocker is active, so thermostat settings are being held."
               desired_hvac_mode: "hold"
               desired_low: 0
               desired_high: 0
@@ -313,7 +414,7 @@ action:
               reason: "Calendar event or pre-cool window is active."
               desired_hvac_mode: "heat_cool"
               desired_low: !input comfort_heat_low
-              desired_high: !input event_cool_high
+              desired_high: "{{ states(event_helper) | float(event_default | float) if event_helper != [] else event_default }}"
               desired_fan: "{{ comfort_fan }}"
 
       - conditions:
@@ -325,7 +426,7 @@ action:
               reason: "Eco override is active and no event window is active."
               desired_hvac_mode: "heat_cool"
               desired_low: !input eco_heat_low
-              desired_high: !input eco_cool_high
+              desired_high: "{{ states(eco_helper) | float(eco_default | float) if eco_helper != [] else eco_default }}"
               desired_fan: "auto"
 
       - conditions:
@@ -337,7 +438,7 @@ action:
               reason: "Manual cooling is active."
               desired_hvac_mode: "heat_cool"
               desired_low: !input comfort_heat_low
-              desired_high: !input event_cool_high
+              desired_high: "{{ states(event_helper) | float(event_default | float) if event_helper != [] else event_default }}"
               desired_fan: "{{ comfort_fan }}"
 
       - conditions:
@@ -353,17 +454,20 @@ action:
               desired_fan: "{{ comfort_fan }}"
 
       - conditions:
-          - condition: time
-            weekday: !input office_school_weekdays
-            after: !input office_school_start_time
-            before: !input office_school_end_time
+          - condition: template
+            value_template: >-
+              {% set day = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][now().weekday()] %}
+              {% set current = now().strftime('%H:%M:%S') %}
+              {{ day in schedule_weekdays and
+                 ((schedule_start <= current < schedule_end) if schedule_start <= schedule_end
+                  else (current >= schedule_start or current < schedule_end)) }}
         sequence:
           - variables:
               selected_mode: "Office or School"
               reason: "Office or school schedule is active."
               desired_hvac_mode: "heat_cool"
               desired_low: !input office_school_heat_low
-              desired_high: !input office_school_cool_high
+              desired_high: "{{ states(office_helper) | float(office_default | float) if office_helper != [] else office_default }}"
               desired_fan: "{{ comfort_fan }}"
 
     default:
@@ -372,7 +476,7 @@ action:
           reason: "No event, occupancy, manual cooling, or schedule is active, so Eco is active."
           desired_hvac_mode: "heat_cool"
           desired_low: !input eco_heat_low
-          desired_high: !input eco_cool_high
+          desired_high: "{{ states(eco_helper) | float(eco_default | float) if eco_helper != [] else eco_default }}"
           desired_fan: "auto"
 
   - if:
@@ -399,42 +503,47 @@ action:
       - condition: template
         value_template: "{{ desired_hvac_mode != 'hold' }}"
     then:
-      - if:
-          - condition: template
-            value_template: >-
-              {% set ns = namespace(needs=false) %}
-              {% for climate in climates_list %}
-                {% if states(climate) != desired_hvac_mode
-                   or (state_attr(climate, 'target_temp_low') | float(-999)) != (desired_low | float)
-                   or (state_attr(climate, 'target_temp_high') | float(-999)) != (desired_high | float) %}
-                  {% set ns.needs = true %}
-                {% endif %}
-              {% endfor %}
-              {{ ns.needs }}
-        then:
-          - action: climate.set_temperature
-            target:
-              entity_id: "{{ climates_list }}"
-            data:
-              hvac_mode: "{{ desired_hvac_mode }}"
-              target_temp_low: "{{ desired_low | float }}"
-              target_temp_high: "{{ desired_high | float }}"
-            continue_on_error: true
-
-      - if:
-          - condition: template
-            value_template: >-
-              {% set ns = namespace(needs=false) %}
-              {% for climate in climates_list %}
-                {% if desired_fan != 'none' and state_attr(climate, 'fan_mode') != desired_fan %}
-                  {% set ns.needs = true %}
-                {% endif %}
-              {% endfor %}
-              {{ ns.needs }}
-        then:
-          - action: climate.set_fan_mode
-            target:
-              entity_id: "{{ climates_list }}"
-            data:
-              fan_mode: "{{ desired_fan }}"
-            continue_on_error: true
+      - repeat:
+          for_each: "{{ climates_list }}"
+          sequence:
+            - if:
+                - condition: template
+                  value_template: >-
+                    {% if thermostat_type == 'cool' %}
+                      {{ states(repeat.item) != 'cool'
+                         or (state_attr(repeat.item, 'temperature') | float(-999)) != (desired_high | float) }}
+                    {% else %}
+                      {{ states(repeat.item) != desired_hvac_mode
+                         or (state_attr(repeat.item, 'target_temp_low') | float(-999)) != (desired_low | float)
+                         or (state_attr(repeat.item, 'target_temp_high') | float(-999)) != (desired_high | float) }}
+                    {% endif %}
+              then:
+                - choose:
+                    - conditions: "{{ thermostat_type == 'cool' }}"
+                      sequence:
+                        - action: climate.set_temperature
+                          target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            hvac_mode: cool
+                            temperature: "{{ desired_high | float }}"
+                          continue_on_error: true
+                  default:
+                    - action: climate.set_temperature
+                      target:
+                        entity_id: "{{ repeat.item }}"
+                      data:
+                        hvac_mode: "{{ desired_hvac_mode }}"
+                        target_temp_low: "{{ desired_low | float }}"
+                        target_temp_high: "{{ desired_high | float }}"
+                      continue_on_error: true
+            - if:
+                - condition: template
+                  value_template: "{{ desired_fan != 'none' and state_attr(repeat.item, 'fan_mode') != desired_fan }}"
+              then:
+                - action: climate.set_fan_mode
+                  target:
+                    entity_id: "{{ repeat.item }}"
+                  data:
+                    fan_mode: "{{ desired_fan }}"
+                  continue_on_error: true

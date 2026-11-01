@@ -1,49 +1,11 @@
-# Helper Entities
+# Helpers
 
-The automation works best when the important controls are helpers instead of hidden hard-coded values.
+All helpers are optional for the newer blueprint. Create them in Home Assistant under Settings → Devices & services → Helpers, then select them in the automation. Use one set per zone.
 
-## Recommended Helpers
+- Two text helpers can display the selected mode and reason. They show the decision, not whether thermostat commands succeeded.
+- Input booleans can activate admin comfort, hold current, manual cool, blockers, and Eco override. Blockers and Eco overrides can each contain multiple booleans.
+- An occupancy binary sensor can select the occupied mode.
 
-Use these per HVAC zone:
+Add control, occupancy, and setpoint helpers to **Controls to watch** for prompt reevaluation; unlisted inputs are evaluated at startup and on the cadence. Optional input-number helpers override the fixed admin, event, office/school, and Eco cool setpoints. Optional input-select and time-only input-datetime helpers can override the comfort fan mode and schedule start/end. Add these to Controls to watch too. For expiring manual cool and hold, see [timed overrides](timed-overrides.md). The optional dashboard contains additional scripts and helpers that are not automatically created.
 
-- `input_text.<zone>_hvac_effective_mode`
-- `input_text.<zone>_hvac_effective_reason`
-- `input_boolean.<zone>_hvac_admin_comfort_lock`
-- `input_boolean.<zone>_hvac_hold_current`
-- `input_boolean.<zone>_hvac_manual_cool_active`
-
-Optional but useful:
-
-- `timer.<zone>_hvac_manual_cool`
-- `timer.<zone>_hvac_hold_current`
-- `input_select.<zone>_hvac_manual_cool_duration`
-- `input_datetime.<zone>_hvac_manual_cool_until`
-- `input_datetime.<zone>_hvac_hold_current_until`
-- `input_number.<zone>_hvac_event_cool_setpoint`
-- `input_number.<zone>_hvac_eco_cool_setpoint`
-- `input_select.<zone>_hvac_comfort_fan_mode`
-
-## Why Helpers Matter
-
-Helpers make the automation readable.
-
-Instead of guessing why the thermostat changed, someone can check:
-
-```text
-Effective Mode: Event
-Effective Reason: Calendar event or pre-cool window is active.
-```
-
-That is useful for humans first. It also gives an AI assistant a safe, narrow control panel.
-
-## Suggested Priority Order
-
-1. Blockers
-2. Admin Comfort
-3. Hold Current
-4. Calendar event or pre-cool
-5. Eco override
-6. Manual Cool
-7. Occupancy
-8. Office/school schedule
-9. Eco fallback
+The priority order is documented in the [README](../README.md#decision-priority).

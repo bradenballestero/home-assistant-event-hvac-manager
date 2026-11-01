@@ -1,83 +1,33 @@
 # Home Assistant Event HVAC Manager
 
-Readable Home Assistant HVAC automation for churches, venues, offices, classrooms, and other shared spaces.
+A Home Assistant blueprint for managing one shared HVAC zone from a calendar, a weekly schedule, occupancy, and manual controls. Optional text helpers show the selected mode and the reason for it.
 
-This project started as a real-world church Sanctuary HVAC setup. The goal is simple: make HVAC behavior understandable, predictable, and safe to override.
+**Status:** The newer Event HVAC Manager is experimental and is still being field-tested. The [legacy blueprint](blueprints/automation/calendar_master_climate_control_legacy.yaml) is the first-generation version used at the original facility. Review and test either blueprint against your own equipment before relying on it.
 
-The automation is designed so a non-coder can open Home Assistant and answer:
+## Is it a fit?
 
-- What mode is the room in?
-- Why is it in that mode?
-- What is allowed to override the normal schedule?
-- Did it actually need to touch the thermostats?
+The newer blueprint is intended for a zone whose thermostats all support either Home Assistant's `heat_cool` mode with low and high targets, or `cool` mode with a single target, as selected in the blueprint. The thermostats must also support the selected `on` and `auto` fan modes. Inputs are in Fahrenheit. It sends the same settings to all selected thermostats. It requires a calendar entity with `start_time` and `end_time` attributes. Check your thermostat integration and calendar before installation; other equipment and Celsius installations have not been established as supported.
 
-## What It Does
+It checks on Home Assistant startup and at the selected interval (15 minutes by default). Add control and occupancy entities to **Controls to watch** for prompt reevaluation. Changes to other inputs, including calendar events, can take up to one interval to be evaluated. A blocker or hold prevents future commands once evaluated; it does not stop a command already in progress. Calendar unavailability holds the current settings, except when a higher-priority blocker, admin comfort, or hold applies.
 
-- Uses calendar events and pre-cool windows.
-- Supports normal weekly office/school hours.
-- Supports Eco fallback when nothing important is happening.
-- Supports blockers like cleaning, prayer, maintenance, or "do not touch HVAC."
-- Supports admin comfort and temporary manual cooling patterns.
-- Avoids reacting to brief calendar `unavailable` reload blips.
-- Avoids sending repeated thermostat commands when the thermostat is already correct.
-- Uses a simple startup/cadence trigger in the reusable blueprint for portability.
-- Keeps the control path legible for people who do not want to debug mystery YAML.
+The mode and reason helpers report the **selected decision**, not confirmation that a thermostat accepted it. Check thermostat states and automation traces for command errors. The manager does not itself expire manual cooling or hold: use the optional companion blueprints described in [timed overrides](docs/timed-overrides.md), or your own scripts and automations.
 
-## Current Status
+## Get started
 
-This project includes two blueprints:
+1. Copy [`event_hvac_manager.yaml`](blueprints/automation/event_hvac_manager.yaml) to `config/blueprints/automation/readable_hvac/event_hvac_manager.yaml` in your Home Assistant configuration directory. Reload automation blueprints or restart Home Assistant.
+2. Create an automation from **Settings → Automations & scenes → Blueprints**. Select the Event HVAC Manager blueprint, your calendar, and one or more compatible climate entities.
+3. Review the temperature setpoints, fan mode, pre-cool time, weekly schedule, and check interval. The defaults include weekday office hours; change them to fit your building.
+4. Optionally create the control and status helpers described in [helpers](docs/helpers.md), then select them in the blueprint and add controls you want to react promptly to **Controls to watch**. Set up [timed overrides](docs/timed-overrides.md) if needed. Save and enable the automation.
+5. Run the automation manually or wait for the next check. Inspect its trace and actual thermostat settings. Test a hold or blocker, a calendar event, and Eco fallback before relying on it. Allow for the check interval when changing inputs.
 
-- `calendar_master_climate_control_legacy.yaml` is the stable first-generation blueprint. This is the time-tested version that has run the real facility.
-- `event_hvac_manager.yaml` is the newer readable-helper version. It adds clearer status helpers, stronger override handling, and fewer unnecessary thermostat commands, but it is still being field-tested.
+For a complete example of blueprint inputs, see [the Sanctuary example](examples/sanctuary-example.yaml); replace all entity IDs with your own. See [troubleshooting](docs/troubleshooting.md) and the optional [dashboard example](docs/dashboard.md).
 
-If you want the proven version first, start with the legacy blueprint. If you want the newer direction of the project, try the Event HVAC Manager blueprint.
+To use the legacy blueprint, copy [`calendar_master_climate_control_legacy.yaml`](blueprints/automation/calendar_master_climate_control_legacy.yaml) into the same blueprint directory and create an automation from it. Its behavior and inputs differ from the newer blueprint.
 
-## Dashboard Example
+## Decision priority
 
-The automation works well with a simple dashboard that shows the current mode, the reason for that mode, thermostat status, setpoints, and temporary override controls.
+The newer blueprint evaluates: admin comfort, hold current, blockers, calendar unavailable, event/pre-cool, Eco override, manual cool, occupancy, office/school hours, then Eco fallback. A higher item wins. During a hold it sends no thermostat commands. Otherwise it checks current targets and fan mode before sending commands to reduce unnecessary calls.
 
-![Example HVAC dashboard](docs/images/hvac-dashboard-office.png)
+## Contributing
 
-See [`docs/dashboard.md`](docs/dashboard.md) for more screenshots and a copyable dashboard example.
-
-## Files
-
-- `blueprints/automation/calendar_master_climate_control_legacy.yaml` - stable first-generation blueprint
-- `blueprints/automation/event_hvac_manager.yaml` - newer readable-helper blueprint
-- `examples/sanctuary-example.yaml` - example automation using the pattern
-- `examples/dashboard/office-hvac-dashboard.yaml` - optional dashboard view example
-- `docs/helpers.md` - helper entities that make the automation readable
-- `docs/dashboard.md` - screenshots and dashboard layout notes
-- `docs/troubleshooting.md` - common problems and what to check first
-
-## Design Philosophy
-
-Most HVAC automations fail in boring ways:
-
-- The calendar briefly goes unavailable and the automation thinks the event ended.
-- One thermostat updates and the other does not.
-- A manual wall change fights the automation.
-- Nobody can tell why the room changed modes.
-- The automation hammers a slow thermostat cloud integration every few minutes.
-
-This project treats HVAC automation like a small control panel, not a hidden script. The important decisions are exposed through helpers and plain-English reason fields.
-
-## Installation
-
-For the stable first-generation blueprint, copy `blueprints/automation/calendar_master_climate_control_legacy.yaml` into:
-
-```text
-config/blueprints/automation/readable_hvac/calendar_master_climate_control_legacy.yaml
-```
-
-For the newer readable-helper blueprint, copy `blueprints/automation/event_hvac_manager.yaml` into:
-
-```text
-config/blueprints/automation/readable_hvac/event_hvac_manager.yaml
-```
-
-Then create a new automation from the blueprint in Home Assistant.
-
-## License
-
-MIT
+See [the NDWC comparison](docs/ndwc-comparison.md) for what is and is not included from the live installation. See [CONTRIBUTING.md](CONTRIBUTING.md) for validation, reporting issues, and project scope. Licensed under the [MIT License](LICENSE).
